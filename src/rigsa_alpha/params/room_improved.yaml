@@ -1,0 +1,19 @@
+# Real-radar room mode (robot:=none), improved detector. Tuned on the 19 Oct 2026 room recordings
+# (~/rigsa_bags/2026-10-19: empty room, one walker, walk-stand-walk) with tools/replay_room.py.
+# Use: ros2 launch rigsa_alpha alpha.launch.py robot:=none ... detector_params:=<this file>
+# Without it the detector behaves exactly as before.
+/**:
+  ros__parameters:
+    max_range: 6.5            # m, points farther from the radar are dropped (ghosts beyond the room)
+    snr_db: 16.0              # dB, point intensity threshold at the radar ...
+    snr_db_per_m: 0.5         # ... lowered by this per metre of range
+    doppler_k: 1.0            # DBSCAN on (x, y, 1.0 * radial velocity); keeps people passing in opposite directions apart
+    absorb_m: 1.2             # m, blobs closer than this are one person
+    new_track_min_points: 10  # points (over 4 frames) needed to start a new person; ghosts have 5-6
+    tracker: kalman           # constant-velocity Kalman filter, Mahalanobis gate, Hungarian matching
+    kf_accel: 1.5             # m/s^2, process noise
+    kf_meas: 0.3              # m, measurement noise of a cluster centroid
+    gate_chi2: 9.21           # 99 % gate, 2 dof
+    static_hold_s: 30.0       # s, a person who stops (clutter removal hides them) is held in place this long
+    static_speed: 0.6         # m/s, below this at the last hit a lost person counts as having stopped
+    static_radius: 1.5        # m, points reappearing this close to a held person continue the same ID
