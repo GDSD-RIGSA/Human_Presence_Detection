@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>rigsa_alpha</name>
+  <version>0.3.0</version>
+  <description>RIGSA alpha demo: Unitree B2 in unitree_mujoco with a simulated mmWave radar, radar-only person detection and tracking, alerts stored in a PostgreSQL event log, RViz2 + Qt operator panel.</description>
+  <maintainer email="rigsa@example.com">RIGSA Robotics</maintainer>
+  <license>MIT</license>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>visualization_msgs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>python_qt_binding</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>b2_radar</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-psycopg2</exec_depend>
+  <!-- MuJoCo comes from pip (pip3 install mujoco). robot:=unitree also uses unitree_go (unitree_ros2),
+       b2_sim_control and b2_description from the B2 dev setup; they are optional for robot:=scripted. -->
+  <test_depend>python3-pytest</test_depend>
+  <export><build_type>ament_python</build_type></export>
+</package>

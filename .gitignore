@@ -1,0 +1,15 @@
+# colcon
+build/
+install/
+log/
+
+# Python
+__pycache__/
+.pytest_cache/
+*.pyc
+*.egg-info/
+
+# Archives
+*.tgz
+*.tar.gz
+*.zip
