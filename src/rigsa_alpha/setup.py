@@ -17,6 +17,7 @@ setup(
         ('share/' + package_name + '/params', glob('params/*.yaml')),
     ],
     install_requires=['setuptools'],
+    tests_require=['pytest'],
     zip_safe=True,
     maintainer='RIGSA Robotics',
     maintainer_email='rigsa@example.com',
