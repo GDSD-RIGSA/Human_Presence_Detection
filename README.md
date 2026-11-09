@@ -7,5 +7,9 @@ Tasks per Sprint - Current Progress
 ## Sprint 4
 - PB09 - Done and Merged to Dev in PR2
 - PB11 - Done
-- PB12 - In Progress
-- PB17 - To Do
+- PB12 - Done
+- PB17 - Done
+
+## Sprint 5
+- PB08 - Hardware Mounting Bracket - In progress - Jaime
+- PB13 - Improvements in Radar to allow more precises multi tracking - To Do - Eduardo, Djordje

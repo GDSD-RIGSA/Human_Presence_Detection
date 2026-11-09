@@ -32,6 +32,9 @@ setup(
             'make_unitree_scene = rigsa_alpha.make_unitree_scene:main',
             'detector = rigsa_alpha.detector_node:main',
             'evaluator = rigsa_alpha.evaluator_node:main',
+            'event_logger = rigsa_alpha.event_logger_node:main',
+            'operator_panel = rigsa_alpha.operator_panel:main',
+            'show_events = rigsa_alpha.show_events:main',
         ],
     },
 )

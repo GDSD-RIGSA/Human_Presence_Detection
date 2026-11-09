@@ -1,0 +1,45 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  colcon-test:
+    runs-on: ubuntu-22.04
+    container: ros:humble
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: rigsa
+          POSTGRES_PASSWORD: rigsa
+          POSTGRES_DB: rigsa
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      RIGSA_TEST_DSN: host=postgres port=5432 dbname=rigsa user=rigsa password=rigsa
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install test dependencies
+        run: |
+          apt-get update
+          apt-get install -y python3-pytest python3-numpy python3-scipy python3-psycopg2 python3-serial ros-humble-rosbag2-py
+
+      - name: Build
+        shell: bash
+        run: |
+          source /opt/ros/humble/setup.bash
+          colcon build --packages-select b2_radar rigsa_alpha
+
+      - name: Test
+        shell: bash
+        run: |
+          source /opt/ros/humble/setup.bash
+          source install/setup.bash
+          colcon test --packages-select b2_radar rigsa_alpha --event-handlers console_direct+
+          colcon test-result --verbose
