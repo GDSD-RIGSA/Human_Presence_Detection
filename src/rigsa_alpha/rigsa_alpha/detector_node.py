@@ -58,6 +58,8 @@ class DetectorNode(Node):
             ('min_points_r0', 2.0), ('doppler_k', 0.0), ('tracker', 'greedy'), ('kf_accel', 1.5), ('kf_meas', 0.3),
             ('gate_chi2', 9.21), ('absorb_m', 0.0), ('static_hold_s', 0.0), ('static_speed', 0.6),
             ('static_radius', 1.5), ('new_track_min_points', 0))})
+        # true (robot:=none): no robot on the stand, so distances and bearings are measured from the radar itself
+        self.room = self.declare_parameter('room', False).value
         changed = {k: v for k, v in self.tuning.items() if v != DEFAULT_TUNING.get(k, v)}
         self.get_logger().info('Detector parameters: %s' % (', '.join('%s=%s' % kv for kv in sorted(changed.items()))
                                                             or 'defaults'))
@@ -139,6 +141,8 @@ class DetectorNode(Node):
 
         r = tf_robot.transform
         robot = (r.translation.x, r.translation.y, quat_to_yaw(r.rotation))
+        if self.room:
+            robot = (float(T[0, 3]), float(T[1, 3]), robot[2])
         for tr in new:
             self.raise_alert(tr, robot, msg.header.stamp)
         self.publish_tracks(robot, msg.header)

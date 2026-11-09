@@ -82,7 +82,8 @@ def setup(context):
     actions += [
         Node(package='rigsa_alpha', executable='detector', output='screen',
              parameters=([ROOM_TRACKING] if room else [])
-             + ([os.path.expanduser(a['detector_params'])] if a['detector_params'] else [])),
+             + ([os.path.expanduser(a['detector_params'])] if a['detector_params'] else [])
+             + [{'room': room}]),
     ]
     if on('event_log'):
         actions.append(Node(package='rigsa_alpha', executable='event_logger', output='screen',
