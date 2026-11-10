@@ -47,8 +47,9 @@ def store(request, tmp_path):
 
 
 def alert(event, track='P1', t=T0, **kw):
-    a = dict(event=event, track=track, stamp=t.isoformat(), x=2.5, y=-1.0, distance=3.1, bearing_deg=-20.0,
-             n_points=9, robot_x=0.0, robot_y=0.5, robot_yaw=0.1, source='radar')
+    a = dict(event=event, track=track, stamp=t.isoformat(), x=2.5, y=-1.0, distance=3.1,
+             bearing_deg=-20.0, n_points=9, robot_x=0.0, robot_y=0.5, robot_yaw=0.1,
+             source='radar')
     a.update(kw)
     return {k: v for k, v in a.items() if v is not None}
 
@@ -68,8 +69,9 @@ def test_tables_and_columns_exist(store):
     for table, col in rows:
         cols.setdefault(table, set()).add(col)
     assert {'id', 'started_at', 'ended_at', 'source'} <= cols['patrol_runs']
-    assert {'run_id', 'event_no', 'track_id', 'detected_at', 'stored_at', 'x_m', 'y_m', 'distance_m', 'bearing_deg',
-            'position_status', 'robot_x', 'robot_y', 'robot_yaw', 'status', 'handled_at'} <= cols['alerts']
+    assert {'run_id', 'event_no', 'track_id', 'detected_at', 'stored_at', 'x_m', 'y_m',
+            'distance_m', 'bearing_deg', 'position_status', 'robot_x', 'robot_y', 'robot_yaw',
+            'status', 'handled_at'} <= cols['alerts']
     assert {'alert_id', 'action', 'acted_at', 'operator'} <= cols['operator_actions']
 
 
@@ -87,7 +89,8 @@ def test_insert_and_read_back(store):
     row_id = store.add_alert(run, alert(1))
     assert row_id is not None
     [a] = store.find_alerts(run_id=run)
-    assert (a['id'], a['event_no'], a['track_id'], a['status'], a['position_status']) == (row_id, 1, 'P1', 'new', 'ok')
+    assert (a['id'], a['event_no'], a['track_id'], a['status'], a['position_status']) == (
+        row_id, 1, 'P1', 'new', 'ok')
     assert a['x_m'] == pytest.approx(2.5) and a['y_m'] == pytest.approx(-1.0)
     assert a['distance_m'] == pytest.approx(3.1) and a['n_points'] == 9 and a['source'] == 'radar'
 
@@ -132,7 +135,8 @@ def test_missing_person_position_is_explicit(store):
     store.add_alert(run, alert(2, x=float('nan')))
     for a in store.find_alerts(run_id=run):
         assert a['position_status'] == 'missing'
-        assert a['x_m'] is None and a['y_m'] is None and a['distance_m'] is None and a['bearing_deg'] is None
+        assert a['x_m'] is None and a['y_m'] is None
+        assert a['distance_m'] is None and a['bearing_deg'] is None
     assert store.position_counts(run) == {'missing': 2}
 
 
@@ -201,6 +205,7 @@ def break_database(store, monkeypatch):
         monkeypatch.setattr(store, 'dsn', 'host=127.0.0.1 port=1 dbname=rigsa user=rigsa')
         monkeypatch.setattr(store, 'connect_timeout', 1)
         return psycopg2.OperationalError
+
     def down(*_a, **_k):
         raise sqlite3.OperationalError('database is locked')
     monkeypatch.setattr(store, 'execute', down)
@@ -265,10 +270,12 @@ def test_buffer_limit_and_dump(store, monkeypatch, tmp_path):
 
 
 def test_fallback_to_sqlite_when_postgres_down(tmp_path):
-    s = EventStore('host=127.0.0.1 port=1 dbname=rigsa user=rigsa', str(tmp_path / 'f.db'), connect_timeout=1)
+    s = EventStore('host=127.0.0.1 port=1 dbname=rigsa user=rigsa', str(tmp_path / 'f.db'),
+                   connect_timeout=1)
     assert s.backend == 'sqlite' and s.error
     with pytest.raises(Exception):
-        EventStore('host=127.0.0.1 port=1 dbname=rigsa user=rigsa', fallback=False, connect_timeout=1)
+        EventStore('host=127.0.0.1 port=1 dbname=rigsa user=rigsa', fallback=False,
+                   connect_timeout=1)
 
 
 def test_old_sqlite_file_is_set_aside(tmp_path):

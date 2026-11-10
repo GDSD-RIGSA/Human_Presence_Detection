@@ -2,8 +2,9 @@
 
     ros2 launch b2_radar radar_playback.launch.py bag:=<rosbag2 folder> [loop:=false] [rate:=1.0]
 
-bag_radar publishes only /radar/points (frame radar_link), restamped to the current time, with the recorded frame
-spacing. A static TF base_link -> radar_link puts the radar on the B2's nose (radar_tf:=false to skip).
+bag_radar publishes only /radar/points (frame radar_link), restamped to the current time, with
+the recorded frame spacing. A static TF base_link -> radar_link puts the radar on the B2's nose
+(radar_tf:=false to skip).
 """
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
@@ -20,11 +21,13 @@ def generate_launch_description():
         DeclareLaunchArgument('bag', description='rosbag2 folder with /radar/points'),
         DeclareLaunchArgument('loop', default_value='true'),
         DeclareLaunchArgument('rate', default_value='1.0', description='playback speed'),
-        DeclareLaunchArgument('radar_tf', default_value='true', description='publish base_link -> radar_link'),
+        DeclareLaunchArgument('radar_tf', default_value='true',
+                              description='publish base_link -> radar_link'),
         Node(package='b2_radar', executable='bag_radar', output='screen',
              parameters=[{'bag': LaunchConfiguration('bag'), 'loop': LaunchConfiguration('loop'),
                           'rate': LaunchConfiguration('rate')}]),
         Node(package='tf2_ros', executable='static_transform_publisher', output='log',
              condition=IfCondition(LaunchConfiguration('radar_tf')),
-             arguments=['--x', x, '--y', y, '--z', z, '--frame-id', 'base_link', '--child-frame-id', RADAR_FRAME]),
+             arguments=['--x', x, '--y', y, '--z', z,
+                        '--frame-id', 'base_link', '--child-frame-id', RADAR_FRAME]),
     ])

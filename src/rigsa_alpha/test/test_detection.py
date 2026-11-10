@@ -11,7 +11,8 @@ def empty_room():
 
 
 def person_points(rng, x, y, n=6):
-    return np.column_stack([rng.normal(x, 0.15, n), rng.normal(y, 0.15, n), rng.uniform(0.3, 1.6, n)])
+    return np.column_stack([rng.normal(x, 0.15, n), rng.normal(y, 0.15, n),
+                            rng.uniform(0.3, 1.6, n)])
 
 
 def test_dbscan_finds_two_clusters_and_noise():
@@ -46,6 +47,7 @@ def test_single_noise_points_raise_no_alert():
     det = Detector(empty_room())
     alerts = []
     for k in range(50):
-        pts = np.column_stack([rng.uniform(1, 9, 2), rng.uniform(1, 9, 2), rng.uniform(0.3, 1.5, 2)])
+        pts = np.column_stack([rng.uniform(1, 9, 2), rng.uniform(1, 9, 2),
+                               rng.uniform(0.3, 1.5, 2)])
         alerts += det.update(pts, k * 0.1)
     assert alerts == []

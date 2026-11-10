@@ -2,13 +2,21 @@
 import math
 
 RADAR_FRAME = 'radar_link'
-# Frames: map -> base_footprint (robot on the floor) -> base_link (B2 body, URDF root) -> radar_link
-RADAR_MOUNT = (0.52, 0.0, 0.06)   # radar_link in base_link, metres: on the B2's nose, facing forward
-JOINTS = ['%s_%s_joint' % (leg, j) for leg in ('FR', 'FL', 'RR', 'RL') for j in ('hip', 'thigh', 'calf')]   # b2_description URDF
+# Frames: map -> base_footprint (robot on the floor) -> base_link (B2 body, URDF root)
+#         -> radar_link
+# radar_link in base_link, metres: on the B2's nose, facing forward
+RADAR_MOUNT = (0.52, 0.0, 0.06)
+# b2_description URDF
+JOINTS = ['%s_%s_joint' % (leg, j)
+          for leg in ('FR', 'FL', 'RR', 'RL') for j in ('hip', 'thigh', 'calf')]
 
 
 def spin(node, cleanup=None):
-    """Spins until Ctrl+C, then shuts down quietly (ros2 launch sends a second SIGINT while we clean up)."""
+    """
+    Spins until Ctrl+C, then shuts down quietly.
+
+    ros2 launch sends a second SIGINT while we clean up.
+    """
     import signal
 
     import rclpy
@@ -17,7 +25,8 @@ def spin(node, cleanup=None):
         rclpy.spin(node)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
-    except RuntimeError:   # a message taken while Ctrl+C shuts the context down; anything else is a real error
+    # a message taken while Ctrl+C shuts the context down; anything else is a real error
+    except RuntimeError:
         if rclpy.ok():
             raise
     finally:
@@ -33,7 +42,8 @@ def make_tf(stamp, parent, child, xyz, quat_xyzw=(0.0, 0.0, 0.0, 1.0)):
     t = TransformStamped()
     t.header.stamp = stamp
     t.header.frame_id, t.child_frame_id = parent, child
-    t.transform.translation.x, t.transform.translation.y, t.transform.translation.z = [float(v) for v in xyz]
+    t.transform.translation.x, t.transform.translation.y, t.transform.translation.z = [
+        float(v) for v in xyz]
     q = t.transform.rotation
     q.x, q.y, q.z, q.w = [float(v) for v in quat_xyzw]
     return t

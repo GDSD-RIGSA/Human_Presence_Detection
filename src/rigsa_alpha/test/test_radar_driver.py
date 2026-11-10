@@ -13,8 +13,13 @@ from rigsa_alpha.radar_driver_node import MAGIC, TLV_DETECTED_POINTS, RadarDrive
 
 
 def ti_frame(points, q=7):
-    """One xWR14xx SDK 2.x frame: 36-byte header + a detected-points TLV. points: (range, doppler, peak, x, y, z)."""
-    body = struct.pack('<HH', len(points), q) + b''.join(struct.pack('<HhHhhh', *p) for p in points)
+    """
+    One xWR14xx SDK 2.x frame: 36-byte header + a detected-points TLV.
+
+    points: (range, doppler, peak, x, y, z).
+    """
+    body = struct.pack('<HH', len(points), q) + b''.join(
+        struct.pack('<HhHhhh', *p) for p in points)
     tlv = struct.pack('<II', TLV_DETECTED_POINTS, len(body)) + body
     total = 36 + len(tlv)
     header = MAGIC + struct.pack('<7I', 0x01000000, total, 0x1443, 1, 0, len(points), 1)
@@ -44,12 +49,15 @@ def test_frame_to_radar_points():
     assert drv.frames == 1 and drv.points == 2
     msg = drv.sent[0]
     assert msg.header.frame_id == RADAR_FRAME == 'radar_link'
-    assert [f.name for f in msg.fields] == list(CLOUD_FIELDS) == ['x', 'y', 'z', 'intensity', 'velocity']
+    assert [f.name for f in msg.fields] == list(CLOUD_FIELDS) == [
+        'x', 'y', 'z', 'intensity', 'velocity']
     pts = read_cloud_full(msg)
     # radar_link: x forward, y left, z up
     np.testing.assert_allclose(pts[:, :3], [[2.0, -1.0, 0.5], [3.0, 0.5, 0.0]], atol=1e-6)
-    np.testing.assert_allclose(pts[:, 3], [10 * np.log10(1000.0), 0.0], rtol=1e-6)   # intensity, dB
-    np.testing.assert_allclose(pts[:, 4], [-0.3, 0.5], atol=1e-6)                     # velocity, m/s
+    # intensity, dB
+    np.testing.assert_allclose(pts[:, 3], [10 * np.log10(1000.0), 0.0], rtol=1e-6)
+    # velocity, m/s
+    np.testing.assert_allclose(pts[:, 4], [-0.3, 0.5], atol=1e-6)
 
 
 def test_empty_frame_publishes_empty_cloud():

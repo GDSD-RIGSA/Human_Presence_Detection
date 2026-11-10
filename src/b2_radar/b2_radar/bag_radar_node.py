@@ -1,8 +1,8 @@
 """Recorded radar: replays /radar/points from a rosbag2 folder as if the radar were live.
 
-Unlike `ros2 bag play`, it publishes only the radar points (the room-test bags also hold a /tf_static that would
-clash with the robot's TF), restamps every cloud with the current time and keeps the original frame spacing, so the
-detector sees a steady clock even when the bag loops.
+Unlike `ros2 bag play`, it publishes only the radar points (the room-test bags also hold a
+/tf_static that would clash with the robot's TF), restamps every cloud with the current time and
+keeps the original frame spacing, so the detector sees a steady clock even when the bag loops.
 
 Publishes:  /radar/points  sensor_msgs/PointCloud2 in radar_link (as recorded)
 Parameters: bag (rosbag2 folder), loop (default true), rate (playback speed, default 1.0)
@@ -22,7 +22,8 @@ def read_bag(path):
     import rosbag2_py
     reader = rosbag2_py.SequentialReader()
     reader.open(rosbag2_py.StorageOptions(uri=path, storage_id='sqlite3'),
-                rosbag2_py.ConverterOptions(input_serialization_format='cdr', output_serialization_format='cdr'))
+                rosbag2_py.ConverterOptions(input_serialization_format='cdr',
+                                            output_serialization_format='cdr'))
     reader.set_filter(rosbag2_py.StorageFilter(topics=['/radar/points']))
     out = []
     while reader.has_next():
@@ -43,9 +44,11 @@ class BagRadar(Node):
         if not self.msgs:
             raise SystemExit('bag_radar: no /radar/points in %s' % path)
         self.name = os.path.basename(path.rstrip('/'))
-        self.pub = self.create_publisher(PointCloud2, '/radar/points', 10)   # reliable, like radar_driver
+        # reliable, like radar_driver
+        self.pub = self.create_publisher(PointCloud2, '/radar/points', 10)
         self.get_logger().info('Replaying %d radar frames (%.1f s) from %s%s' % (
-            len(self.msgs), self.msgs[-1][0] - self.msgs[0][0], path, ', looping' if self.loop else ''))
+            len(self.msgs), self.msgs[-1][0] - self.msgs[0][0], path,
+            ', looping' if self.loop else ''))
         self.i = 0
         self.start_wall = self.now()
         self.passes = 1
@@ -56,7 +59,8 @@ class BagRadar(Node):
 
     def tick(self):
         t0 = self.msgs[0][0]
-        while self.i < len(self.msgs) and (self.msgs[self.i][0] - t0) / self.rate <= self.now() - self.start_wall:
+        elapsed = self.now() - self.start_wall
+        while self.i < len(self.msgs) and (self.msgs[self.i][0] - t0) / self.rate <= elapsed:
             msg = self.msgs[self.i][1]
             msg.header.stamp = self.get_clock().now().to_msg()
             msg.header.frame_id = msg.header.frame_id or RADAR_FRAME

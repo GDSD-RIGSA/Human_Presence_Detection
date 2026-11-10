@@ -3,8 +3,9 @@
 ros2 run rigsa_alpha make_unitree_scene ~/unitree_mujoco/unitree_robots/b2/scene_rigsa.xml
 then:  ./unitree_mujoco -r b2 -s scene_rigsa.xml -i 1 -n lo
 
-The B2 starts at the simulator's world origin facing +x, so the building is shifted so that the origin is the
-sentry post scenario.SENTRY_POST in the map. b2_bridge uses the same post to put the B2 back in map coordinates.
+The B2 starts at the simulator's world origin facing +x, so the building is shifted so that the
+origin is the sentry post scenario.SENTRY_POST in the map. b2_bridge uses the same post to put the
+B2 back in map coordinates.
 """
 import sys
 
@@ -26,10 +27,12 @@ TEMPLATE = '''<mujoco model="b2 rigsa hallway">
   </visual>
 
   <asset>
-    <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="3072"/>
-    <texture type="2d" name="groundplane" builtin="checker" mark="edge" rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3"
-      markrgb="0.8 0.8 0.8" width="300" height="300"/>
-    <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="5 5" reflectance="0.2"/>
+    <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0"
+      width="512" height="3072"/>
+    <texture type="2d" name="groundplane" builtin="checker" mark="edge"
+      rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3" markrgb="0.8 0.8 0.8" width="300" height="300"/>
+    <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="5 5"
+      reflectance="0.2"/>
   </asset>
 
   <worldbody>
@@ -44,7 +47,8 @@ TEMPLATE = '''<mujoco model="b2 rigsa hallway">
 def scene_xml():
     px, py, pyaw = SENTRY_POST
     if pyaw != 0.0:
-        raise SystemExit('make_unitree_scene only shifts the building; keep the SENTRY_POST yaw at 0')
+        raise SystemExit(
+            'make_unitree_scene only shifts the building; keep the SENTRY_POST yaw at 0')
     return TEMPLATE.format(px=px, py=py, pyaw=pyaw,
                            geoms='\n    '.join(building_geoms(WALLS, FURNITURE, dx=-px, dy=-py)))
 

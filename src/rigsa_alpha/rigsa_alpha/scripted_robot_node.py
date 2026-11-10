@@ -1,4 +1,7 @@
-"""Scripted B2 for machines without unitree_mujoco: patrols the hallway with a played-back trot gait.
+"""
+Scripted B2 for machines without unitree_mujoco.
+
+Patrols the hallway with a played-back trot gait.
 
 Publishes the same topics as b2_bridge (so everything downstream is identical):
   /tf  map -> base_footprint -> base_link,  /joint_states,  /operator/status
@@ -42,11 +45,13 @@ class ScriptedRobot(Node):
         now = self.get_clock().now().to_msg()
         self.tf.sendTransform([
             make_tf(now, 'map', 'base_footprint', (x, y, 0.0), yaw_quat(yaw)),
-            make_tf(now, 'base_footprint', 'base_link', (0.0, 0.0, BODY_Z + 0.012 * math.sin(2 * phase))),
+            make_tf(now, 'base_footprint', 'base_link',
+                    (0.0, 0.0, BODY_Z + 0.012 * math.sin(2 * phase))),
         ])
         q = []
         for leg in ('FR', 'FL', 'RR', 'RL'):
-            ph = phase + (0.0 if leg in ('FL', 'RR') else math.pi)   # trot: diagonal pairs together
+            # trot: diagonal pairs together
+            ph = phase + (0.0 if leg in ('FL', 'RR') else math.pi)
             lift = max(0.0, math.cos(ph))
             q += [0.0, STAND_THIGH + 0.25 * math.sin(ph) - 0.15 * lift, STAND_CALF - 0.35 * lift]
         js = JointState()

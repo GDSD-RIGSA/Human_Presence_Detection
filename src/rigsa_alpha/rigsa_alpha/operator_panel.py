@@ -7,8 +7,9 @@ from datetime import datetime
 import rclpy
 from python_qt_binding.QtCore import Qt, QTimer
 from python_qt_binding.QtGui import QBrush, QColor, QFont
-from python_qt_binding.QtWidgets import (QAbstractItemView, QApplication, QFrame, QHBoxLayout, QHeaderView, QLabel,
-                                         QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
+from python_qt_binding.QtWidgets import (QAbstractItemView, QApplication, QFrame, QHBoxLayout,
+                                         QHeaderView, QLabel, QPushButton, QTableWidget,
+                                         QTableWidgetItem, QVBoxLayout, QWidget)
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import PointCloud2
 from std_msgs.msg import String
@@ -39,7 +40,8 @@ class OperatorPanel(QWidget):
         node.create_subscription(String, '/alerts', self.on_alert, 10)
         node.create_subscription(String, '/operator/status', self.on_status, 10)
         self.radar_msgs, self.radar_hz, self.radar_t = 0, 0.0, time.monotonic()
-        node.create_subscription(PointCloud2, '/radar/points', self.on_radar, qos_profile_sensor_data)
+        node.create_subscription(PointCloud2, '/radar/points', self.on_radar,
+                                 qos_profile_sensor_data)
         node.create_subscription(String, '/event_log/status', self.on_log_status, 10)
         node.create_subscription(String, '/alerts/ack', self.on_ack, 10)
 
@@ -66,8 +68,10 @@ class OperatorPanel(QWidget):
         row = QHBoxLayout()
         self.ack_btn = QPushButton('✓  Acknowledge')
         self.fa_btn = QPushButton('✕  False alarm')
-        self.ack_btn.setStyleSheet('QPushButton { background: #2a74b3; color: white; font-weight: bold; padding: 14px; '
-                                   'font-size: 17px; border-radius: 4px; } QPushButton:disabled { background: #9fb8cf; }')
+        self.ack_btn.setStyleSheet('QPushButton { background: #2a74b3; color: white; '
+                                   'font-weight: bold; padding: 14px; '
+                                   'font-size: 17px; border-radius: 4px; } '
+                                   'QPushButton:disabled { background: #9fb8cf; }')
         self.fa_btn.setStyleSheet('QPushButton { padding: 14px; font-size: 17px; }')
         self.ack_btn.clicked.connect(lambda: self.handle('ack'))
         self.fa_btn.clicked.connect(lambda: self.handle('false_alarm'))
@@ -118,7 +122,8 @@ class OperatorPanel(QWidget):
             d = json.loads(msg.data)
         except ValueError:
             return
-        if self.current and self.current['event'] == d.get('event') and self.current['status'] == 'new':
+        if (self.current and self.current['event'] == d.get('event')
+                and self.current['status'] == 'new'):
             self.current['status'] = d.get('action', 'ack')
             self.show_alert()
 
@@ -133,8 +138,8 @@ class OperatorPanel(QWidget):
         if not self.current or self.current['status'] != 'new':
             return
         self.current['status'] = action
-        self.ack_pub.publish(String(data=json.dumps(dict(event=self.current['event'], action=action,
-                                                         operator=self.operator))))
+        self.ack_pub.publish(String(data=json.dumps(dict(
+            event=self.current['event'], action=action, operator=self.operator))))
         self.show_alert()
 
     def show_alert(self):
@@ -145,7 +150,8 @@ class OperatorPanel(QWidget):
         if self.current:
             a = self.current
             if a.get('distance') is not None and a.get('direction'):
-                self.alert_detail.setText('%s · %.1f m · %s' % (a['track'], a['distance'], a['direction']))
+                self.alert_detail.setText(
+                    '%s · %.1f m · %s' % (a['track'], a['distance'], a['direction']))
             else:
                 self.alert_detail.setText('%s · position unknown' % a['track'])
             self.alert_time.setText(a['time'])
@@ -166,7 +172,8 @@ class OperatorPanel(QWidget):
                 detected = datetime.fromisoformat(detected)
             t = detected.astimezone().strftime('%H:%M:%S')
             where = '%.1f m' % dist if dist is not None else 'no position'
-            for c, text in enumerate(('#%d  %s' % (event_no, t), track, where, STATUS_TEXT[status])):
+            texts = ('#%d  %s' % (event_no, t), track, where, STATUS_TEXT[status])
+            for c, text in enumerate(texts):
                 item = QTableWidgetItem(text)
                 if c == 3:
                     item.setForeground(QBrush(QColor('white')))
@@ -180,20 +187,25 @@ class OperatorPanel(QWidget):
     def refresh_footer(self):
         now = time.monotonic()
         if now - self.radar_t >= 2.0:
-            self.radar_hz, self.radar_msgs, self.radar_t = self.radar_msgs / (now - self.radar_t), 0, now
+            self.radar_hz = self.radar_msgs / (now - self.radar_t)
+            self.radar_msgs, self.radar_t = 0, now
         radar = '&nbsp;&nbsp; Radar %.0f Hz' % self.radar_hz
         if now - self.last_status < 3.0 and self.status.get('robot') != 'no data':
-            self.footer.setText('<span style="color:#2e7d32">●</span> Robot: %s %s' % (self.status['robot'], radar))
+            self.footer.setText('<span style="color:#2e7d32">●</span> Robot: %s %s'
+                                % (self.status['robot'], radar))
         else:
-            self.footer.setText('<span style="color:#c62828">●</span> No data from the robot %s' % radar)
+            self.footer.setText(
+                '<span style="color:#c62828">●</span> No data from the robot %s' % radar)
         if time.monotonic() - self.last_log < 3.0 and self.log.get('ok'):
             n = sum(self.log.get('counts', {}).values())
             name = 'PostgreSQL' if self.log['backend'] == 'postgres' else 'SQLite (fallback)'
-            self.db_footer.setText('<span style="color:#2e7d32">●</span> Event log: %s %s &nbsp;&nbsp; patrol run %s '
-                                   '&nbsp;&nbsp; alerts stored: %d' % (name, self.log['where'], self.log['run'], n))
+            self.db_footer.setText('<span style="color:#2e7d32">●</span> Event log: %s %s '
+                                   '&nbsp;&nbsp; patrol run %s &nbsp;&nbsp; alerts stored: %d'
+                                   % (name, self.log['where'], self.log['run'], n))
         elif time.monotonic() - self.last_log < 3.0:
-            self.db_footer.setText('<span style="color:#c62828">●</span> Event log: database unreachable (%s), '
-                                   '%d alert(s) waiting to be saved' % (self.log.get('error'), self.log.get('pending', 0)))
+            self.db_footer.setText('<span style="color:#c62828">●</span> Event log: '
+                                   'database unreachable (%s), %d alert(s) waiting to be saved'
+                                   % (self.log.get('error'), self.log.get('pending', 0)))
         else:
             self.db_footer.setText('<span style="color:#c62828">●</span> Event log not running')
 
