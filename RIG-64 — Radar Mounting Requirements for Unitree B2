@@ -1,0 +1,30 @@
+## RIG-64 — Radar Mounting Requirements for Unitree B2
+
+**1. Mounting Height**
+
+The Texas Instruments AWR1443 radar will be installed above the Unitree B2's LiDAR sensor, 
+during CAD development, an approximate 10 mm above the LiDAR was used as a reference for positioning the mounting system.
+
+
+
+**2. Field of View (FoV)**
+
+The radar will face backward with a 15° inclination relative to the horizontal reference plane, 
+this orientation was defined to direct the radar's detection area toward the region in front of the robot.
+
+The enclosure uses an open-frame design to minimize obstruction of the radar.
+
+**3. Cable Routing**
+
+The radar cable will exit through the enclosure's open structure and be routed toward the Unitree B2's onboard processing module or computer, 
+the enclosure provides access to the radar connectors without requiring complete disassembly of the case.
+
+**4. Printing Material**
+
+The enclosure and mounting components will be manufactured using PLA (Polylactic Acid) through FDM 3D printing, 
+PLA was selected for its ease of printing, dimensional accuracy, and rigidity.
+
+**5. Mechanical Mounting**
+
+A custom modular mounting system was designed in Autodesk Inventor 2027 to integrate the radar enclosure with the Unitree B2, 
+the system consists of a rectangular enclosure with long and short side frames, corner connectors, and mounting components.
