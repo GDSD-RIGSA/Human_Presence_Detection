@@ -1,7 +1,9 @@
 """Unit tests for the radar detector (no ROS needed): python3 -m pytest test/"""
 import numpy as np
+import pytest
 
-from rigsa_alpha.detection import BackgroundMask, Detector, dbscan
+from rigsa_alpha.detection import (MAX_SPEED, BackgroundMask, Detector, assign, clamp_speed,
+                                   dbscan, merge_close)
 
 
 def empty_room():
@@ -51,3 +53,59 @@ def test_single_noise_points_raise_no_alert():
                                rng.uniform(0.3, 1.5, 2)])
         alerts += det.update(pts, k * 0.1)
     assert alerts == []
+
+
+def test_dbscan_empty_input_returns_no_labels():
+    assert len(dbscan(np.zeros((0, 2)))) == 0
+
+
+def test_dbscan_min_points_boundary():
+    same = np.zeros((5, 2))                       # 5 points on one spot = MIN_POINTS
+    assert (dbscan(same) == 0).all()              # at the limit: a cluster
+    assert (dbscan(same[:4]) == -1).all()         # one below: noise
+
+
+def test_dbscan_eps_boundary_is_inclusive():
+    on_eps = np.array([[0.0, 0.0], [1.0, 0.0]])
+    assert (dbscan(on_eps, eps=1.0, min_points=2) == 0).all()          # distance == eps
+    beyond = np.array([[0.0, 0.0], [1.0000001, 0.0]])
+    assert (dbscan(beyond, eps=1.0, min_points=2) == -1).all()         # just above eps
+
+
+def test_dbscan_nan_points_are_noise():
+    xy = np.vstack([np.zeros((5, 2)), [[np.nan, np.nan]]])
+    labels = dbscan(xy)
+    assert (labels[:5] == 0).all() and labels[5] == -1
+
+
+def test_background_margin_boundary():
+    mask = empty_room()   # wall on the border, margin 0.35 m
+    assert mask.is_background(np.array([[5.0, 0.39]])).all()      # just inside the margin
+    assert not mask.is_background(np.array([[5.0, 0.41]])).any()  # just outside it
+
+
+def test_merge_close_boundary_is_strict():
+    pair = [(np.array([0.0, 0.0]), 1), (np.array([1.0, 0.0]), 1)]
+    assert len(merge_close(pair, dist=1.0)) == 2                  # distance == dist: kept apart
+    merged = merge_close(pair, dist=1.0001)
+    assert len(merged) == 1
+    np.testing.assert_allclose(merged[0][0], [0.5, 0.0])
+
+
+def test_merge_close_empty_and_single():
+    assert merge_close([], dist=1.0) == []
+    one = [(np.array([2.0, 2.0]), 3)]
+    assert merge_close(one, dist=1.0) == one
+
+
+def test_assign_big_cost_is_not_assigned():
+    assert assign(np.array([[0.99]]), big=1.0) == [(0, 0)]        # just below big
+    assert assign(np.array([[1.0]]), big=1.0) == []               # at big: rejected
+    assert assign(np.zeros((0, 0)), big=1.0) == []                # nothing to assign
+
+
+def test_clamp_speed_boundary():
+    at_limit = np.array([MAX_SPEED, 0.0])
+    np.testing.assert_array_equal(clamp_speed(at_limit), at_limit)
+    fast = clamp_speed(np.array([3.0 * MAX_SPEED, 0.0]))
+    assert np.linalg.norm(fast) == pytest.approx(MAX_SPEED)

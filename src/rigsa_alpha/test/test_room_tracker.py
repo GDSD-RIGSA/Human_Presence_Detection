@@ -1,7 +1,9 @@
 """Unit tests for the room-mode detector options (no ROS needed): python3 -m pytest test/"""
 import numpy as np
+import pytest
 
-from rigsa_alpha.detection import BackgroundMask, Detector, assign, merge_close
+from rigsa_alpha.detection import (BackgroundMask, Detector, Track, assign,
+                                   merge_close)
 
 ROOM = dict(gate=2.0, lost_after=4.0, reacquire_s=15.0, reacquire_m=3.0, eps=0.6)
 IMPROVED = dict(ROOM, max_range=6.5, snr_db=16.0, snr_db_per_m=0.5, doppler_k=1.0, absorb_m=1.2,
@@ -111,3 +113,49 @@ def test_merge_close_and_assign():
     cost = np.array([[1.0, 2.0], [1.5, big]])
     # optimal (3.5), not greedy-first (row 0 takes col 0)
     assert sorted(assign(cost, big)) == [(0, 1), (1, 0)]
+
+
+def test_max_range_boundary_is_inclusive():
+    det = Detector(open_room(), **IMPROVED)   # max_range = 6.5 m
+    pts = np.array([[6.5, 0.0, 1.0, 22.0, 0.4],     # exactly max_range
+                    [6.6, 0.0, 1.0, 22.0, 0.4]])    # just beyond it
+    kept = det.filter(pts, sensor_xy=RADAR)
+    assert kept[:, 0].tolist() == [6.5]
+
+
+@pytest.mark.parametrize('n_points, tracks_started', [(9, 0), (10, 1)])
+def test_new_track_min_points_boundary(n_points, tracks_started):
+    rng = np.random.default_rng(8)
+    det = Detector(open_room(), **IMPROVED)   # new_track_min_points = 10
+    det.update(person(rng, 3.0, 0.0, 0.4, n=n_points), 0.0, sensor_xy=RADAR)
+    assert len(det.tracks) == tracks_started
+
+
+@pytest.mark.parametrize('t, still_tracked', [(4.0, 1), (4.1, 0)])
+def test_lost_after_boundary(t, still_tracked):
+    det = Detector(open_room(), **ROOM)       # lost_after = 4.0 s
+    track = Track('P1', (3.0, 0.0), 0.0)
+    track.confirmed = True
+    det.tracks = [track]
+    det.update(np.zeros((0, 5)), t, sensor_xy=RADAR)
+    assert len(det.tracks) == still_tracked
+    assert len(det.lost) == 1 - still_tracked   # a confirmed track that expires is remembered
+
+
+@pytest.mark.parametrize('t, remembered', [(14.9, 1), (15.0, 0)])
+def test_lost_track_is_forgotten_after_reacquire_s(t, remembered):
+    det = Detector(open_room(), **ROOM)       # reacquire_s = 15 s
+    det.lost = [(Track('P1', (3.0, 0.0), 0.0), 0.0)]
+    det.update(np.zeros((0, 5)), t, sensor_xy=RADAR)
+    assert len(det.lost) == remembered
+
+
+@pytest.mark.parametrize('frame', [
+    np.full((6, 5), np.nan),         # every value missing
+    np.array([1.0, 2.0, 3.0]),       # not a point array
+    np.zeros((0, 5)),                # empty frame
+], ids=['nan', 'not_2d', 'empty'])
+def test_update_ignores_nan_and_malformed_frames(frame):
+    det = Detector(open_room(), **IMPROVED)
+    assert det.update(frame, 0.0, sensor_xy=RADAR) == []
+    assert det.tracks == []
