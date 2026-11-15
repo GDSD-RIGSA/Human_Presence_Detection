@@ -190,8 +190,8 @@ def test_one_walking_bag_gives_one_alert_and_one_track_in_postgres(postgres_sche
         tracked = sum(any(tr['track'] == alert['track'] for tr in msg['tracks'])
                       for msg in harness.tracks)
         assert tracked >= 0.8 * len(harness.tracks), (
-            'track id %s only in %d / %d frames' % (alert['track'], tracked,
-                                                   len(harness.tracks)))
+            'track id %s only in %d / %d frames'
+            % (alert['track'], tracked, len(harness.tracks)))
 
         # Assert: the alert reached PostgreSQL, once, with the detector's geometry
         con = psycopg2.connect(postgres_schema, connect_timeout=2)
