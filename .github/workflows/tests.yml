@@ -48,7 +48,9 @@ jobs:
       - name: Install test dependencies
         run: |
           apt-get update
-          apt-get install -y python3-pytest python3-numpy python3-scipy python3-psycopg2 python3-serial ros-humble-rosbag2-py
+          apt-get install -y python3-pytest python3-numpy python3-scipy python3-psycopg2 python3-serial ros-humble-rosbag2-py python3-pip ros-humble-python-qt-binding
+          # MuJoCo for the radar simulator tests; Qt runs offscreen (the tests set QT_QPA_PLATFORM)
+          pip3 install mujoco==3.17.0
 
       - name: Build
         shell: bash
