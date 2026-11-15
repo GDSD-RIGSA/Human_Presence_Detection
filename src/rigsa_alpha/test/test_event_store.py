@@ -6,6 +6,15 @@ import pytest
 
 from rigsa_alpha.event_store import DEFAULT_DSN, BufferedWriter, EventStore, normalize_alert
 
+try:
+    import psycopg2
+    # CHECK-constraint violations: sqlite3.IntegrityError (SQLite), psycopg2.IntegrityError (PG)
+    CONSTRAINT_ERRORS = (sqlite3.IntegrityError, psycopg2.IntegrityError)
+    CONNECT_ERRORS = (psycopg2.OperationalError,)
+except ImportError:   # psycopg2 missing: only the SQLite side can run
+    CONSTRAINT_ERRORS = (sqlite3.IntegrityError,)
+    CONNECT_ERRORS = ()
+
 PG_DSN = os.environ.get('RIGSA_TEST_DSN', DEFAULT_DSN)
 TEST_SCHEMA = 'rigsa_test'
 T0 = datetime(2026, 10, 28, 10, 0, 0, tzinfo=timezone(timedelta(hours=1)))
@@ -78,9 +87,9 @@ def test_tables_and_columns_exist(store):
 def test_schema_rejects_invalid_values(store):
     run = store.start_run('sim')
     store.add_alert(run, alert(1))
-    with pytest.raises(Exception):
+    with pytest.raises(CONSTRAINT_ERRORS):
         store.execute("UPDATE alerts SET status = 'maybe' WHERE run_id = %s", (run,))
-    with pytest.raises(Exception):
+    with pytest.raises(CONSTRAINT_ERRORS):
         store.execute("UPDATE alerts SET position_status = 'guess' WHERE run_id = %s", (run,))
 
 
@@ -166,6 +175,33 @@ def test_normalize_alert():
     for bad in ({}, {'event': 'x', 'track': 'P1'}, {'event': 4}, [1, 2]):
         with pytest.raises(ValueError):
             normalize_alert(bad)
+
+
+def test_normalize_alert_naive_timestamp_is_accepted():
+    row, warnings = normalize_alert(alert(1, stamp='2026-10-28T10:00:00'))   # no UTC offset
+    assert warnings == []
+    assert datetime.fromisoformat(row['detected_at']).tzinfo is not None
+
+
+@pytest.mark.parametrize('x, y, status', [
+    (0.0, 0.0, 'ok'),                # zero is a real position, not a missing one
+    (float('inf'), 1.0, 'missing'),
+    ('abc', 1.0, 'missing'),
+])
+def test_normalize_alert_position_edge_values(x, y, status):
+    row, _warnings = normalize_alert(alert(1, x=x, y=y))
+    assert row['position_status'] == status
+
+
+@pytest.mark.parametrize('filters', [
+    dict(status='nonexistent'),
+    dict(position_status='nonexistent'),
+    dict(since=T0 + timedelta(minutes=5), until=T0),   # empty time window
+], ids=['status', 'position_status', 'empty_window'])
+def test_find_alerts_without_a_match_returns_nothing(store, filters):
+    run = store.start_run('sim')
+    store.add_alert(run, alert(1))
+    assert store.find_alerts(run_id=run, **filters) == []
 
 
 def test_retrieval_queries(store):
@@ -273,7 +309,7 @@ def test_fallback_to_sqlite_when_postgres_down(tmp_path):
     s = EventStore('host=127.0.0.1 port=1 dbname=rigsa user=rigsa', str(tmp_path / 'f.db'),
                    connect_timeout=1)
     assert s.backend == 'sqlite' and s.error
-    with pytest.raises(Exception):
+    with pytest.raises(CONNECT_ERRORS):
         EventStore('host=127.0.0.1 port=1 dbname=rigsa user=rigsa', fallback=False,
                    connect_timeout=1)
 
