@@ -3,7 +3,8 @@ import csv
 import sys
 from datetime import datetime
 
-from rigsa_alpha.event_store import ALERT_COLUMNS, DEFAULT_DSN, DEFAULT_SQLITE, POSITION_STATUSES, EventStore
+from rigsa_alpha.event_store import (ALERT_COLUMNS, DEFAULT_DSN, DEFAULT_SQLITE, POSITION_STATUSES,
+                                     EventStore)
 
 STATUS = {'new': 'NEW', 'ack': 'ACK', 'false_alarm': 'FALSE ALARM'}
 
@@ -32,19 +33,23 @@ def main():
     ap.add_argument('--until', type=when)
     ap.add_argument('--status', choices=sorted(STATUS))
     ap.add_argument('--position', choices=POSITION_STATUSES)
-    ap.add_argument('--history', type=int, metavar='ROW', help='operator decisions on one alert row')
-    ap.add_argument('--csv', metavar='FILE', help="write the selected alerts to a CSV file ('-' = stdout)")
+    ap.add_argument('--history', type=int, metavar='ROW',
+                    help='operator decisions on one alert row')
+    ap.add_argument('--csv', metavar='FILE',
+                    help="write the selected alerts to a CSV file ('-' = stdout)")
     args, _ = ap.parse_known_args()
     try:
         store = EventStore(args.dsn, args.sqlite, fallback=True, create=False)
     except Exception as e:
         sys.exit('Event log not reachable: %s' % e)
-    print('Event log: %s %s' % (store.backend, store.where), file=sys.stderr if args.csv == '-' else sys.stdout)
+    print('Event log: %s %s' % (store.backend, store.where),
+          file=sys.stderr if args.csv == '-' else sys.stdout)
     try:
         if args.runs:
             print('%4s  %-25s %-25s %-7s %s' % ('run', 'started', 'ended', 'source', 'alerts'))
             for rid, start, end, source, n in store.runs(args.limit):
-                print('%4d  %-25s %-25s %-7s %d' % (rid, str(start)[:25], str(end or '-')[:25], source, n))
+                print('%4d  %-25s %-25s %-7s %d'
+                      % (rid, str(start)[:25], str(end or '-')[:25], source, n))
             return
         if args.history is not None:
             rows = store.alert_history(args.history)
@@ -56,8 +61,8 @@ def main():
         run = args.run
         if run is None and not args.all_runs:
             run = store.latest_run()
-        rows = store.find_alerts(run_id=run, since=args.since, until=args.until, status=args.status,
-                                 position_status=args.position, limit=100000)
+        rows = store.find_alerts(run_id=run, since=args.since, until=args.until,
+                                 status=args.status, position_status=args.position, limit=100000)
         if not args.csv:
             rows = rows[-args.limit:]
         if args.csv:
@@ -72,12 +77,14 @@ def main():
             return
         if run is not None:
             print('Patrol run %d' % run)
-        print('%6s %4s %4s %-7s %-25s %7s %7s %8s %-13s %s' % ('row', 'run', 'no', 'person', 'detected at', 'x m', 'y m',
-                                                                'dist m', 'position', 'status'))
+        print('%6s %4s %4s %-7s %-25s %7s %7s %8s %-13s %s' % (
+            'row', 'run', 'no', 'person', 'detected at', 'x m', 'y m', 'dist m', 'position',
+            'status'))
         for r in reversed(rows):
             print('%6d %4d %4d %-7s %-25s %7s %7s %8s %-13s %s' % (
-                r['id'], r['run_id'], r['event_no'], r['track_id'], str(r['detected_at'])[:25], fmt(r['x_m'], '%.1f'),
-                fmt(r['y_m'], '%.1f'), fmt(r['distance_m'], '%.1f'), r['position_status'], STATUS[r['status']]))
+                r['id'], r['run_id'], r['event_no'], r['track_id'], str(r['detected_at'])[:25],
+                fmt(r['x_m'], '%.1f'), fmt(r['y_m'], '%.1f'), fmt(r['distance_m'], '%.1f'),
+                r['position_status'], STATUS[r['status']]))
         if not rows:
             print('(no alerts match)')
     except Exception as e:

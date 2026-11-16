@@ -3,8 +3,8 @@
 Publishes (all latched):
   /map               nav_msgs/OccupancyGrid  building floor (maps/hallway.yaml)
   /tf_static         base_link -> radar_link (where the radar sits on the B2)
-  /rigsa/scene       visualization_msgs/MarkerArray  radar field of view, room names, and a box for the robot
-                     when no URDF robot model is shown (parameter robot_box)
+  /rigsa/scene       visualization_msgs/MarkerArray  radar field of view, room names, and a box
+                     for the robot when no URDF robot model is shown (parameter robot_box)
 """
 import math
 import os
@@ -30,18 +30,23 @@ class SiteNode(Node):
         share = get_package_share_directory('rigsa_alpha')
         self.declare_parameter('map_yaml', os.path.join(share, 'maps', 'hallway.yaml'))
         self.declare_parameter('robot_box', False)
-        self.declare_parameter('room', False)          # room test with a real radar on a stand: no building, no robot
-        self.declare_parameter('radar_height', 1.0)    # room test: radar height above the floor, metres
+        # room test with a real radar on a stand: no building, no robot
+        self.declare_parameter('room', False)
+        # room test: radar height above the floor, metres
+        self.declare_parameter('radar_height', 1.0)
         self.room = self.get_parameter('room').value
         self.radar_height = self.get_parameter('radar_height').value
-        latched = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL, reliability=ReliabilityPolicy.RELIABLE)
+        latched = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                             reliability=ReliabilityPolicy.RELIABLE)
         self.map_pub = self.create_publisher(OccupancyGrid, '/map', latched)
         self.scene_pub = self.create_publisher(MarkerArray, '/rigsa/scene', latched)
         self.static_tf = StaticTransformBroadcaster(self)
         now = self.get_clock().now().to_msg()
         tfs = [make_tf(now, 'base_link', RADAR_FRAME, RADAR_MOUNT)]
-        if self.room:   # the radar stands at the map origin, facing +x, radar_height above the floor
-            tfs.append(make_tf(now, 'map', 'base_link', (-RADAR_MOUNT[0], 0.0, self.radar_height - RADAR_MOUNT[2])))
+        # the radar stands at the map origin, facing +x, radar_height above the floor
+        if self.room:
+            tfs.append(make_tf(now, 'map', 'base_link',
+                               (-RADAR_MOUNT[0], 0.0, self.radar_height - RADAR_MOUNT[2])))
             self.publish_room()
         else:
             self.publish_map(self.get_parameter('map_yaml').value)
@@ -87,7 +92,8 @@ class SiteNode(Node):
         radar.scale.x, radar.scale.y, radar.scale.z = 0.08, 0.2, 0.12
         radar.color = ColorRGBA(r=0.0, g=0.9, b=0.46, a=1.0)
         name = self.marker('robot', 2, Marker.TEXT_VIEW_FACING, 'base_link')
-        name.text, name.scale.z, name.color = 'radar' if self.room else 'B2', 0.6, ColorRGBA(r=0.85, g=0.4, b=0.0, a=1.0)
+        name.text, name.scale.z = 'radar' if self.room else 'B2', 0.6
+        name.color = ColorRGBA(r=0.85, g=0.4, b=0.0, a=1.0)
         name.pose.position.x, name.pose.position.z = -0.9, 0.6
         arr.markers += [radar, name]
         if robot_box:
@@ -96,7 +102,8 @@ class SiteNode(Node):
             body.color = ColorRGBA(r=0.95, g=0.55, b=0.1, a=1.0)
             arr.markers.append(body)
 
-        # radar field of view, drawn flat on the floor (the floor is about RADAR_MOUNT z + body height below)
+        # radar field of view, drawn flat on the floor (the floor is about RADAR_MOUNT z + body
+        # height below)
         fov = self.marker('radar_fov', 0, Marker.TRIANGLE_LIST, RADAR_FRAME)
         fov.scale.x = fov.scale.y = fov.scale.z = 1.0
         fov.color = ColorRGBA(r=0.0, g=0.9, b=0.46, a=0.12)

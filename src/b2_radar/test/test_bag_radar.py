@@ -15,3 +15,9 @@ def test_recorded_bags_replay_the_same_radar_frames(name):
     assert len(first) > 100                                   # ~10 Hz for 45 s
     assert [t for t, _ in first] == [t for t, _ in second]    # same frames, same order, every time
     assert all(b[0] >= a[0] for a, b in zip(first, first[1:]))
+
+
+def test_missing_bag_raises(tmp_path):
+    pytest.importorskip('rosbag2_py')
+    with pytest.raises(RuntimeError):
+        read_bag(str(tmp_path / 'no_such_bag'))

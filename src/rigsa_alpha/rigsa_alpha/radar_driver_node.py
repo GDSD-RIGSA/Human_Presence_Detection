@@ -1,11 +1,13 @@
 """Driver for a real TI AWR1443BOOST running the mmWave SDK 2.x out-of-box demo (xWR14xx).
 
-Sends a .cfg (saved from TI's mmWave Demo Visualizer) to the CLI port, then reads the binary frames from the
-data port and publishes the detected points like radar_sim does.
+Sends a .cfg (saved from TI's mmWave Demo Visualizer) to the CLI port, then reads the binary frames
+from the data port and publishes the detected points like radar_sim does.
 
-Parameters: cli_port (/dev/ttyACM0, 115200), data_port (/dev/ttyACM1, 921600), radar_cfg (path to the .cfg),
-            clutter_removal (true: forces `clutterRemoval 1`, so only moving things are reported)
-Publishes:  /radar/points     sensor_msgs/PointCloud2 in radar_link: x, y, z, intensity (dB), velocity (m/s)
+Parameters: cli_port (/dev/ttyACM0, 115200), data_port (/dev/ttyACM1, 921600), radar_cfg (path to
+            the .cfg), clutter_removal (true: forces `clutterRemoval 1`, so only moving things are
+            reported)
+Publishes:  /radar/points     sensor_msgs/PointCloud2 in radar_link: x, y, z, intensity (dB),
+                              velocity (m/s)
             /operator/status  std_msgs/String (JSON) for the operator panel footer
 
 TI's radar frame is x right, y forward (boresight), z up; radar_link is x forward, y left, z up.
@@ -39,7 +41,8 @@ class RadarDriver(Node):
         self.declare_parameter('clutter_removal', True)
         p = lambda k: self.get_parameter(k).value   # noqa: E731
         self.pub = self.create_publisher(String, '/operator/status', 10)
-        self.cloud_pub = self.create_publisher(PointCloud2, '/radar/points', 10)   # reliable, like radar_sim: works for every subscriber
+        # reliable, like radar_sim: works for every subscriber
+        self.cloud_pub = self.create_publisher(PointCloud2, '/radar/points', 10)
         self.frames = 0
         self.points = 0
         self.vel_res = 0.0
@@ -56,7 +59,8 @@ class RadarDriver(Node):
 
     def read_cfg(self, path, clutter):
         if not path:
-            raise RuntimeError('radar_cfg is not set (path to the .cfg saved from the mmWave Demo Visualizer)')
+            raise RuntimeError(
+                'radar_cfg is not set (path to the .cfg saved from the mmWave Demo Visualizer)')
         lines = []
         with open(path) as f:
             for raw in f:
@@ -67,7 +71,8 @@ class RadarDriver(Node):
                     line = 'clutterRemoval %d' % (1 if clutter else 0)
                 lines.append(line)
         self.doppler_resolution(lines)
-        self.get_logger().info('Radar cfg %s: %d commands, clutter removal %s' % (path, len(lines), 'on' if clutter else 'off'))
+        self.get_logger().info('Radar cfg %s: %d commands, clutter removal %s'
+                               % (path, len(lines), 'on' if clutter else 'off'))
         return lines
 
     def doppler_resolution(self, lines):
@@ -130,7 +135,8 @@ class RadarDriver(Node):
                 buf = buf[total:]
 
     def parse_frame(self, pkt):
-        # header: magic(8) version totalPacketLen platform frameNumber timeCpuCycles numDetectedObj numTLVs
+        # header: magic(8) version totalPacketLen platform frameNumber timeCpuCycles numDetectedObj
+        # numTLVs
         n_tlv = struct.unpack_from('<I', pkt, 32)[0]
         off = 36
         if n_tlv > 10:   # SDK variants with subFrameNumber in the header (xWR16xx)
@@ -154,8 +160,9 @@ class RadarDriver(Node):
         n = min(n, (len(pkt) - start) // 12)
         if n <= 0:
             return np.zeros((0, 5), dtype=np.float32)
-        raw = np.frombuffer(pkt, dtype=np.dtype([('range', '<u2'), ('doppler', '<i2'), ('peak', '<u2'),
-                                                 ('x', '<i2'), ('y', '<i2'), ('z', '<i2')]), count=n, offset=start)
+        point = np.dtype([('range', '<u2'), ('doppler', '<i2'), ('peak', '<u2'),
+                          ('x', '<i2'), ('y', '<i2'), ('z', '<i2')])
+        raw = np.frombuffer(pkt, dtype=point, count=n, offset=start)
         scale = 1.0 / (1 << q)
         out = np.zeros((n, 5), dtype=np.float32)
         out[:, 0] = raw['y'] * scale          # forward
@@ -169,7 +176,8 @@ class RadarDriver(Node):
         self.pub.publish(String(data=json.dumps(dict(robot='TI AWR1443 (room test, no robot)'))))
 
     def report(self):
-        self.get_logger().info('Radar: %d frames in the last 10 s, %d points' % (self.frames, self.points))
+        self.get_logger().info(
+            'Radar: %d frames in the last 10 s, %d points' % (self.frames, self.points))
         self.frames = self.points = 0
 
     def stop(self):

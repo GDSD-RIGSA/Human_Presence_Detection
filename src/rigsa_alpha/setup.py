@@ -21,7 +21,8 @@ setup(
     zip_safe=True,
     maintainer='RIGSA Robotics',
     maintainer_email='rigsa@example.com',
-    description='RIGSA alpha demo: Unitree B2 (unitree_mujoco) detects people with simulated mmWave radar, alerts stored in PostgreSQL',
+    description=('RIGSA alpha demo: Unitree B2 (unitree_mujoco) detects people with simulated '
+                 'mmWave radar, alerts stored in PostgreSQL'),
     license='MIT',
     entry_points={
         'console_scripts': [

@@ -6,6 +6,15 @@ import pytest
 
 from rigsa_alpha.event_store import DEFAULT_DSN, BufferedWriter, EventStore, normalize_alert
 
+try:
+    import psycopg2
+    # CHECK-constraint violations: sqlite3.IntegrityError (SQLite), psycopg2.IntegrityError (PG)
+    CONSTRAINT_ERRORS = (sqlite3.IntegrityError, psycopg2.IntegrityError)
+    CONNECT_ERRORS = (psycopg2.OperationalError,)
+except ImportError:   # psycopg2 missing: only the SQLite side can run
+    CONSTRAINT_ERRORS = (sqlite3.IntegrityError,)
+    CONNECT_ERRORS = ()
+
 PG_DSN = os.environ.get('RIGSA_TEST_DSN', DEFAULT_DSN)
 TEST_SCHEMA = 'rigsa_test'
 T0 = datetime(2026, 10, 28, 10, 0, 0, tzinfo=timezone(timedelta(hours=1)))
@@ -47,8 +56,9 @@ def store(request, tmp_path):
 
 
 def alert(event, track='P1', t=T0, **kw):
-    a = dict(event=event, track=track, stamp=t.isoformat(), x=2.5, y=-1.0, distance=3.1, bearing_deg=-20.0,
-             n_points=9, robot_x=0.0, robot_y=0.5, robot_yaw=0.1, source='radar')
+    a = dict(event=event, track=track, stamp=t.isoformat(), x=2.5, y=-1.0, distance=3.1,
+             bearing_deg=-20.0, n_points=9, robot_x=0.0, robot_y=0.5, robot_yaw=0.1,
+             source='radar')
     a.update(kw)
     return {k: v for k, v in a.items() if v is not None}
 
@@ -68,17 +78,18 @@ def test_tables_and_columns_exist(store):
     for table, col in rows:
         cols.setdefault(table, set()).add(col)
     assert {'id', 'started_at', 'ended_at', 'source'} <= cols['patrol_runs']
-    assert {'run_id', 'event_no', 'track_id', 'detected_at', 'stored_at', 'x_m', 'y_m', 'distance_m', 'bearing_deg',
-            'position_status', 'robot_x', 'robot_y', 'robot_yaw', 'status', 'handled_at'} <= cols['alerts']
+    assert {'run_id', 'event_no', 'track_id', 'detected_at', 'stored_at', 'x_m', 'y_m',
+            'distance_m', 'bearing_deg', 'position_status', 'robot_x', 'robot_y', 'robot_yaw',
+            'status', 'handled_at'} <= cols['alerts']
     assert {'alert_id', 'action', 'acted_at', 'operator'} <= cols['operator_actions']
 
 
 def test_schema_rejects_invalid_values(store):
     run = store.start_run('sim')
     store.add_alert(run, alert(1))
-    with pytest.raises(Exception):
+    with pytest.raises(CONSTRAINT_ERRORS):
         store.execute("UPDATE alerts SET status = 'maybe' WHERE run_id = %s", (run,))
-    with pytest.raises(Exception):
+    with pytest.raises(CONSTRAINT_ERRORS):
         store.execute("UPDATE alerts SET position_status = 'guess' WHERE run_id = %s", (run,))
 
 
@@ -87,7 +98,8 @@ def test_insert_and_read_back(store):
     row_id = store.add_alert(run, alert(1))
     assert row_id is not None
     [a] = store.find_alerts(run_id=run)
-    assert (a['id'], a['event_no'], a['track_id'], a['status'], a['position_status']) == (row_id, 1, 'P1', 'new', 'ok')
+    assert (a['id'], a['event_no'], a['track_id'], a['status'], a['position_status']) == (
+        row_id, 1, 'P1', 'new', 'ok')
     assert a['x_m'] == pytest.approx(2.5) and a['y_m'] == pytest.approx(-1.0)
     assert a['distance_m'] == pytest.approx(3.1) and a['n_points'] == 9 and a['source'] == 'radar'
 
@@ -132,7 +144,8 @@ def test_missing_person_position_is_explicit(store):
     store.add_alert(run, alert(2, x=float('nan')))
     for a in store.find_alerts(run_id=run):
         assert a['position_status'] == 'missing'
-        assert a['x_m'] is None and a['y_m'] is None and a['distance_m'] is None and a['bearing_deg'] is None
+        assert a['x_m'] is None and a['y_m'] is None
+        assert a['distance_m'] is None and a['bearing_deg'] is None
     assert store.position_counts(run) == {'missing': 2}
 
 
@@ -162,6 +175,33 @@ def test_normalize_alert():
     for bad in ({}, {'event': 'x', 'track': 'P1'}, {'event': 4}, [1, 2]):
         with pytest.raises(ValueError):
             normalize_alert(bad)
+
+
+def test_normalize_alert_naive_timestamp_is_accepted():
+    row, warnings = normalize_alert(alert(1, stamp='2026-10-28T10:00:00'))   # no UTC offset
+    assert warnings == []
+    assert datetime.fromisoformat(row['detected_at']).tzinfo is not None
+
+
+@pytest.mark.parametrize('x, y, status', [
+    (0.0, 0.0, 'ok'),                # zero is a real position, not a missing one
+    (float('inf'), 1.0, 'missing'),
+    ('abc', 1.0, 'missing'),
+])
+def test_normalize_alert_position_edge_values(x, y, status):
+    row, _warnings = normalize_alert(alert(1, x=x, y=y))
+    assert row['position_status'] == status
+
+
+@pytest.mark.parametrize('filters', [
+    dict(status='nonexistent'),
+    dict(position_status='nonexistent'),
+    dict(since=T0 + timedelta(minutes=5), until=T0),   # empty time window
+], ids=['status', 'position_status', 'empty_window'])
+def test_find_alerts_without_a_match_returns_nothing(store, filters):
+    run = store.start_run('sim')
+    store.add_alert(run, alert(1))
+    assert store.find_alerts(run_id=run, **filters) == []
 
 
 def test_retrieval_queries(store):
@@ -201,6 +241,7 @@ def break_database(store, monkeypatch):
         monkeypatch.setattr(store, 'dsn', 'host=127.0.0.1 port=1 dbname=rigsa user=rigsa')
         monkeypatch.setattr(store, 'connect_timeout', 1)
         return psycopg2.OperationalError
+
     def down(*_a, **_k):
         raise sqlite3.OperationalError('database is locked')
     monkeypatch.setattr(store, 'execute', down)
@@ -265,10 +306,12 @@ def test_buffer_limit_and_dump(store, monkeypatch, tmp_path):
 
 
 def test_fallback_to_sqlite_when_postgres_down(tmp_path):
-    s = EventStore('host=127.0.0.1 port=1 dbname=rigsa user=rigsa', str(tmp_path / 'f.db'), connect_timeout=1)
+    s = EventStore('host=127.0.0.1 port=1 dbname=rigsa user=rigsa', str(tmp_path / 'f.db'),
+                   connect_timeout=1)
     assert s.backend == 'sqlite' and s.error
-    with pytest.raises(Exception):
-        EventStore('host=127.0.0.1 port=1 dbname=rigsa user=rigsa', fallback=False, connect_timeout=1)
+    with pytest.raises(CONNECT_ERRORS):
+        EventStore('host=127.0.0.1 port=1 dbname=rigsa user=rigsa', fallback=False,
+                   connect_timeout=1)
 
 
 def test_old_sqlite_file_is_set_aside(tmp_path):

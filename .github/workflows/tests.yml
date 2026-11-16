@@ -5,7 +5,27 @@ on:
   pull_request:
 
 jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-22.04
+    container: ros:humble
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ament_flake8
+        run: |
+          apt-get update
+          apt-get install -y ros-humble-ament-flake8
+
+      # Same command as the ament-flake8 hook in .pre-commit-config.yaml
+      - name: Lint (ament_flake8)
+        shell: bash
+        run: |
+          source /opt/ros/humble/setup.bash
+          ament_flake8 src
+
   colcon-test:
+    name: test
     runs-on: ubuntu-22.04
     container: ros:humble
     services:
@@ -28,7 +48,9 @@ jobs:
       - name: Install test dependencies
         run: |
           apt-get update
-          apt-get install -y python3-pytest python3-numpy python3-scipy python3-psycopg2 python3-serial ros-humble-rosbag2-py
+          apt-get install -y python3-pytest python3-numpy python3-scipy python3-psycopg2 python3-serial ros-humble-rosbag2-py python3-pip ros-humble-python-qt-binding
+          # MuJoCo for the radar simulator tests; Qt runs offscreen (the tests set QT_QPA_PLATFORM)
+          pip3 install mujoco==3.17.0
 
       - name: Build
         shell: bash
@@ -36,6 +58,8 @@ jobs:
           source /opt/ros/humble/setup.bash
           colcon build --packages-select b2_radar rigsa_alpha
 
+      # Runs every test/ directory: unit tests, the SQLite + PostgreSQL event store tests
+      # and the rosbag replay tests (test_bag_radar.py).
       - name: Test
         shell: bash
         run: |

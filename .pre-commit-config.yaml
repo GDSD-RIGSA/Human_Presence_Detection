@@ -1,0 +1,16 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ament-flake8
+        name: lint (ament_flake8)
+        entry: bash -c 'source /opt/ros/humble/setup.bash && ament_flake8 src'
+        language: system
+        pass_filenames: false
+        types: [python]
+
+      - id: unit-tests
+        name: unit tests
+        entry: bash -c 'source /opt/ros/humble/setup.bash && cd src/rigsa_alpha && PYTHONPATH=.:../b2_radar:$PYTHONPATH python3 -m pytest -q -x test ../b2_radar/test'
+        language: system
+        pass_filenames: false
+        types: [python]

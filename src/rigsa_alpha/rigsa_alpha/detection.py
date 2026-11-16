@@ -4,20 +4,25 @@ Pipeline per radar frame (points already in the map frame):
   1. static background removal: drop points on or near walls and furniture in the occupancy map
   2. height and range gates
   3. accumulate the last few frames (radar point clouds are sparse) and cluster them (DBSCAN)
-  4. track cluster centroids (nearest neighbour + smoothing); a track is confirmed after enough hits
+  4. track cluster centroids (nearest neighbour + smoothing); a track is confirmed after enough
+     hits
 
 Room-mode options for the real radar (all off by default, see params/room_improved.yaml):
-  max_range, snr_db / snr_db_per_m      drop points beyond a range, or weaker than a range-dependent threshold
-  min_points_per_m                      the cluster size needed to count changes with the cluster's range
-  doppler_k                             DBSCAN on (x, y, doppler_k * radial velocity): separates people who walk
-                                        past each other in different directions
-  tracker='kalman'                      constant-velocity Kalman filter per track, Mahalanobis gating, Hungarian
-                                        matching (scipy, greedy fallback)
-  absorb_m                              clusters closer than this are merged, and a leftover cluster this close to
-                                        a confirmed track is part of that person, not a new one
-  new_track_min_points                  only clusters this strong start a new track (ghosts are weak)
-  static_hold_s                         a confirmed person who stops (clutter removal hides them) is held in place
-                                        with the same ID for this long, until points reappear within static_radius
+  max_range, snr_db / snr_db_per_m  drop points beyond a range, or weaker than a range-dependent
+                                    threshold
+  min_points_per_m                  the cluster size needed to count changes with the cluster's
+                                    range
+  doppler_k                         DBSCAN on (x, y, doppler_k * radial velocity): separates
+                                    people who walk past each other in different directions
+  tracker='kalman'                  constant-velocity Kalman filter per track, Mahalanobis
+                                    gating, Hungarian matching (scipy, greedy fallback)
+  absorb_m                          clusters closer than this are merged, and a leftover cluster
+                                    this close to a confirmed track is part of that person, not
+                                    a new one
+  new_track_min_points              only clusters this strong start a new track (ghosts are weak)
+  static_hold_s                     a confirmed person who stops (clutter removal hides them) is
+                                    held in place with the same ID for this long, until points
+                                    reappear within static_radius
 """
 import math
 from collections import deque
@@ -33,15 +38,19 @@ MIN_POINTS = 5              # DBSCAN core size, over the accumulated frames
 GATE = 1.2                  # max jump between a track and a new cluster per update
 CONFIRM_HITS, CONFIRM_WINDOW = 5, 8   # confirmed after 5 hits in the last 8 updates
 LOST_AFTER = 1.5            # track deleted when not seen for this long
-REACQUIRE_S, REACQUIRE_M = 4.0, 2.0   # a new track near a just-lost confirmed one keeps its ID (no new alert)
-COAST_S = 0.5               # a confirmed track not updated for this long can hand its ID to a new nearby track
+# a new track near a just-lost confirmed one keeps its ID (no new alert)
+REACQUIRE_S, REACQUIRE_M = 4.0, 2.0
+# a confirmed track not updated for this long can hand its ID to a new nearby track
+COAST_S = 0.5
 MAX_SPEED = 2.0             # m/s, cap on a track's velocity estimate
-PREDICT_S = 1.0             # predict pos + vel*dt only for gaps shorter than this; longer gaps use the last pos
-I_COL, V_COL = 3, 4         # intensity (dB) and radial velocity (m/s) columns of an (N, 5) point array
+# predict pos + vel*dt only for gaps shorter than this; longer gaps use the last pos
+PREDICT_S = 1.0
+# intensity (dB) and radial velocity (m/s) columns of an (N, 5) point array
+I_COL, V_COL = 3, 4
 
 
 class BackgroundMask:
-    """Boolean grid: True where a point is static background (near occupied or outside the known map)."""
+    """Boolean grid: True where a point is static background (near occupied or outside the map)."""
 
     def __init__(self, grid, resolution, origin, margin=WALL_MARGIN):
         occ = (grid != 0)            # occupied or unknown
@@ -103,7 +112,8 @@ class Track:
         self.trail = [tuple(pos)]
         self.life = 'moving'     # moving / static (room-mode static hold)
         self.hit_speed = 0.0     # speed estimate at the last update
-        self.kf_x = np.array([pos[0], pos[1], 0.0, 0.0])   # Kalman state x, y, vx, vy (tracker='kalman')
+        # Kalman state x, y, vx, vy (tracker='kalman')
+        self.kf_x = np.array([pos[0], pos[1], 0.0, 0.0])
         self.kf_P = None
         self.kf_t = t
 
@@ -111,12 +121,17 @@ class Track:
 class Detector:
     """Feed it radar frames in the map frame; it returns new alerts as tracks get confirmed."""
 
-    def __init__(self, mask, gate=GATE, lost_after=LOST_AFTER, reacquire_s=REACQUIRE_S, reacquire_m=REACQUIRE_M,
-                 eps=EPS, max_range=0.0, snr_db=0.0, snr_db_per_m=0.0, min_points_per_m=0.0, min_points_r0=2.0,
-                 doppler_k=0.0, tracker='greedy', kf_accel=1.5, kf_meas=0.3, gate_chi2=9.21, absorb_m=0.0,
-                 static_hold_s=0.0, static_speed=0.6, static_radius=1.5, new_track_min_points=0):
-        """The keyword arguments override the tuning above (the real radar is sparser than the simulated one).
-        The room-mode options (max_range ... static_radius) are off with their defaults; see the module docstring."""
+    def __init__(self, mask, gate=GATE, lost_after=LOST_AFTER, reacquire_s=REACQUIRE_S,
+                 reacquire_m=REACQUIRE_M, eps=EPS, max_range=0.0, snr_db=0.0, snr_db_per_m=0.0,
+                 min_points_per_m=0.0, min_points_r0=2.0, doppler_k=0.0, tracker='greedy',
+                 kf_accel=1.5, kf_meas=0.3, gate_chi2=9.21, absorb_m=0.0, static_hold_s=0.0,
+                 static_speed=0.6, static_radius=1.5, new_track_min_points=0):
+        """
+        Keyword arguments override the tuning above.
+
+        The real radar is sparser than the simulated one. The room-mode options (max_range ...
+        static_radius) are off with their defaults; see the module docstring.
+        """
         self.mask = mask
         self.gate, self.lost_after, self.eps = gate, lost_after, eps
         self.reacquire_s, self.reacquire_m = reacquire_s, reacquire_m
@@ -124,7 +139,8 @@ class Detector:
         self.min_points_per_m, self.min_points_r0 = min_points_per_m, min_points_r0
         self.doppler_k, self.tracker, self.absorb_m = doppler_k, tracker, absorb_m
         self.kf_accel, self.kf_meas, self.gate_chi2 = kf_accel, kf_meas, gate_chi2
-        self.static_hold_s, self.static_speed, self.static_radius = static_hold_s, static_speed, static_radius
+        self.static_hold_s, self.static_speed, self.static_radius = (
+            static_hold_s, static_speed, static_radius)
         self.new_track_min_points = new_track_min_points
         self.frames = deque(maxlen=ACCUM_FRAMES)
         self.tracks = []
@@ -151,7 +167,11 @@ class Detector:
         return pts
 
     def cluster(self, acc, sensor_xy=None):
-        """DBSCAN over the merged frames. Returns [(centroid xy, n points, mean radial velocity)]."""
+        """
+        DBSCAN over the merged frames.
+
+        Returns [(centroid xy, n points, mean radial velocity)].
+        """
         if len(acc) == 0:
             return []
         feats = acc[:, :2]
@@ -168,14 +188,18 @@ class Detector:
                     continue
             clusters.append((pos, len(sel)))
             vels.append(float(sel[:, V_COL].mean()))
-        if self.absorb_m > 0:   # blobs this close together (and moving alike) are one person: a body often splits
+        # blobs this close together (and moving alike) are one person: a body often splits
+        if self.absorb_m > 0:
             clusters = merge_close(clusters, self.absorb_m, vels, self.doppler_k)
         return clusters
 
     def update(self, pts_map, t, sensor_xy=None):
-        """Returns a list of Track objects that were confirmed in this update (one alert each).
-        pts_map: (N, 3) xyz or (N, 5) xyz + intensity + velocity in the map frame; sensor_xy: radar position in the
-        map (needed by the range-dependent options)."""
+        """
+        Returns a list of Track objects that were confirmed in this update (one alert each).
+
+        pts_map: (N, 3) xyz or (N, 5) xyz + intensity + velocity in the map frame; sensor_xy: radar
+        position in the map (needed by the range-dependent options).
+        """
         pts = np.asarray(pts_map, dtype=float)
         if pts.ndim != 2 or len(pts) == 0:
             pts = np.zeros((0, 5))
@@ -196,11 +220,13 @@ class Detector:
         for ci, (pos, n) in enumerate(clusters):
             if ci in used_c:
                 continue
-            if self.absorb_m > 0 and any(o.confirmed and np.linalg.norm(o.pos - pos) < self.absorb_m
-                                         for o in self.tracks):
+            if self.absorb_m > 0 and any(
+                    o.confirmed and np.linalg.norm(o.pos - pos) < self.absorb_m
+                    for o in self.tracks):
                 continue   # a second blob of a person already tracked, not a new person
             if n < self.new_track_min_points:
-                continue   # weak blobs (wall reflections, sidelobes) may extend a track but never start one
+                # weak blobs (wall reflections, sidelobes) may extend a track but never start one
+                continue
             tr = Track(None, pos, t)
             tr.n_points = n
             if self.tracker == 'kalman':
@@ -212,7 +238,8 @@ class Detector:
             age = t - tr.last
             if (self.static_hold_s > 0 and tr.confirmed and age > COAST_S and tr.life == 'moving'
                     and tr.hit_speed < self.static_speed):
-                tr.life = 'static'           # stopped: clutter removal hides a still person, so hold them in place
+                # stopped: clutter removal hides a still person, so hold them in place
+                tr.life = 'static'
                 tr.vel = np.zeros(2)
                 tr.kf_x[2:] = 0.0
             if age <= self.lost_after or (tr.life == 'static' and age <= self.static_hold_s):
@@ -227,7 +254,8 @@ class Detector:
             if not tr.confirmed and sum(tr.hits) >= CONFIRM_HITS:
                 tr.confirmed = True
                 old = self.reacquire(tr, t)
-                if old is not None:      # same person seen again after a short gap: keep ID, no new alert
+                # same person seen again after a short gap: keep ID, no new alert
+                if old is not None:
                     tr.id, tr.event, tr.state, tr.first = old.id, old.event, old.state, old.first
                     tr.trail = (old.trail + tr.trail)[-15:]
                     continue
@@ -239,7 +267,11 @@ class Detector:
         return confirmed
 
     def associate_greedy(self, clusters, t):
-        """Nearest neighbour, closest pairs first (the original tracker). Returns the used track / cluster indices."""
+        """
+        Nearest neighbour, closest pairs first (the original tracker).
+
+        Returns the used track / cluster indices.
+        """
         pairs = sorted((self.distance(tr, c[0], t), ti, ci)
                        for ti, tr in enumerate(self.tracks) for ci, c in enumerate(clusters))
         used_t, used_c = set(), set()
@@ -256,7 +288,7 @@ class Detector:
         return used_t, used_c
 
     def distance(self, tr, pos, t):
-        """Greedy matching distance; a static track accepts points anywhere within static_radius."""
+        """Greedy matching distance; a static track accepts points anywhere in static_radius."""
         d = np.linalg.norm(predict(tr, t) - pos)
         if tr.life == 'static':
             return d * self.gate / self.static_radius
@@ -271,8 +303,12 @@ class Detector:
             tr.trail = (tr.trail + [tuple(tr.pos)])[-15:]
 
     def kf_predict(self, tr, t):
-        """Constant-velocity prediction to t (white acceleration noise kf_accel). A static track does not move, and a
-        track unseen for PREDICT_S stops moving, so a lost person is not pushed away from where they reappear."""
+        """
+        Constant-velocity prediction to t (white acceleration noise kf_accel).
+
+        A static track does not move, and a track unseen for PREDICT_S stops moving, so a lost
+        person is not pushed away from where they reappear.
+        """
         dt = t - tr.kf_t
         if dt <= 0:
             return
@@ -287,7 +323,7 @@ class Detector:
         tr.vel = clamp_speed(tr.kf_x[2:].copy())
 
     def associate_kalman(self, clusters, t):
-        """Kalman predict, Mahalanobis gate (gate_chi2, 2 dof), Hungarian assignment, Kalman update."""
+        """Kalman predict, Mahalanobis gate (gate_chi2, 2 dof), Hungarian assignment, update."""
         H = np.eye(2, 4)
         R = np.eye(2) * self.kf_meas ** 2
         for tr in self.tracks:
@@ -323,9 +359,13 @@ class Detector:
         return used_t, used_c
 
     def reacquire(self, tr, t):
-        """A recently lost confirmed track, or a confirmed one coasting (not updated for COAST_S), near tr. It is
-        removed, so one person never shows as two tracks."""
-        coasting = [o for o in self.tracks if o is not tr and o.confirmed and t - o.last > COAST_S]
+        """
+        A recently lost or coasting (not updated for COAST_S) confirmed track near tr.
+
+        It is removed, so one person never shows as two tracks.
+        """
+        coasting = [o for o in self.tracks
+                    if o is not tr and o.confirmed and t - o.last > COAST_S]
         best, best_d = None, self.reacquire_m
         for old in [o for o, _ in self.lost if not any(o is k for k in self.tracks)] + coasting:
             d = np.linalg.norm(old.pos - tr.pos)
@@ -346,9 +386,12 @@ class Detector:
 
 
 def merge_close(clusters, dist, vels=None, doppler_k=0.0):
-    """Merges clusters closer than dist (point-weighted centroid) until none are. With doppler_k, the distance also
-    counts doppler_k * the difference of their mean radial velocities, so two people passing each other in
-    opposite directions are not merged."""
+    """
+    Merges clusters closer than dist (point-weighted centroid) until none are.
+
+    With doppler_k, the distance also counts doppler_k * the difference of their mean radial
+    velocities, so two people passing each other in opposite directions are not merged.
+    """
     clusters = list(clusters)
     vels = list(vels) if vels is not None else [0.0] * len(clusters)
     merged = True
@@ -370,7 +413,11 @@ def merge_close(clusters, dist, vels=None, doppler_k=0.0):
 
 
 def assign(cost, big):
-    """Minimum-cost one-to-one assignment, ignoring pairs that cost big. Hungarian (scipy) when available."""
+    """
+    Minimum-cost one-to-one assignment, ignoring pairs that cost big.
+
+    Hungarian (scipy) when available.
+    """
     if cost.size == 0:
         return []
     try:
@@ -388,7 +435,7 @@ def assign(cost, big):
 
 
 def predict(tr, t):
-    """Where tr should be at t: constant velocity for short gaps, the last position for long ones."""
+    """Where tr should be at t: constant velocity for short gaps, last position for long ones."""
     dt = t - tr.last
     return tr.pos + tr.vel * dt if dt < PREDICT_S else tr.pos
 

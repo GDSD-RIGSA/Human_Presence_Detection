@@ -1,15 +1,19 @@
 """Radar simulator: the mmWave radar on the B2, plus the people walking in the building.
 
-Neither unitree_mujoco nor Gazebo can simulate an mmWave radar or move people around, so this node keeps its
-own MuJoCo world (building, people, and a copy of the B2 that follows the real simulation) and casts the
-radar's rays in it. It works with any robot source that publishes TF and /joint_states (b2_bridge, scripted_robot).
+Neither unitree_mujoco nor Gazebo can simulate an mmWave radar or move people around, so this
+node keeps its own MuJoCo world (building, people, and a copy of the B2 that follows the real
+simulation) and casts the radar's rays in it. It works with any robot source that publishes TF
+and /joint_states (b2_bridge, scripted_robot).
 
 Subscribes: /tf (map -> radar_link, map -> base_link), /joint_states
-Publishes:  /radar/points        sensor_msgs/PointCloud2 in radar_link: x, y, z, intensity (SNR dB), velocity
-            /sim/people          std_msgs/String (JSON): true positions + visible flag (for the evaluator only)
-            /sim/people_markers  visualization_msgs/MarkerArray: true positions, drawn faintly in RViz
-Parameters: gui (own MuJoCo window with building, people and B2, default false), b2_xml (Unitree's b2.xml for the
-            full B2 meshes in that window), seed.
+Publishes:  /radar/points        sensor_msgs/PointCloud2 in radar_link: x, y, z,
+                                 intensity (SNR dB), velocity
+            /sim/people          std_msgs/String (JSON): true positions + visible flag
+                                 (for the evaluator only)
+            /sim/people_markers  visualization_msgs/MarkerArray: true positions, drawn faintly in
+                                 RViz
+Parameters: gui (own MuJoCo window with building, people and B2, default false), b2_xml
+            (Unitree's b2.xml for the full B2 meshes in that window), seed.
 """
 import contextlib
 import json
@@ -40,7 +44,8 @@ class RadarSim(Node):
         self.declare_parameter('seed', -1)
         seed = self.get_parameter('seed').value
         b2_xml = self.get_parameter('b2_xml').value or None
-        self.world = World(WALLS, FURNITURE, len(scenario.PEOPLE), b2_xml=b2_xml, seed=None if seed < 0 else seed)
+        self.world = World(WALLS, FURNITURE, len(scenario.PEOPLE), b2_xml=b2_xml,
+                           seed=None if seed < 0 else seed)
         if b2_xml and not self.world.full_b2:
             self.get_logger().warn('b2_xml %s not found; showing a simplified B2' % b2_xml)
         self.tf_buffer = Buffer()
@@ -58,7 +63,8 @@ class RadarSim(Node):
         self.last_origin = None
         self.warned = False
         self.create_timer(1.0 / RADAR_HZ, self.step)
-        self.get_logger().info('Radar simulator running: %d people, radar %.0f Hz, %.0f m, +-%.0f deg'
+        self.get_logger().info('Radar simulator running: %d people, radar %.0f Hz, %.0f m, '
+                               '+-%.0f deg'
                                % (len(scenario.PEOPLE), RADAR_HZ, RADAR_RANGE, RADAR_HALF_AZ))
 
     def open_viewer(self):
@@ -67,7 +73,8 @@ class RadarSim(Node):
             import mujoco.viewer
             self.viewer = mujoco.viewer.launch_passive(self.world.model, self.world.data,
                                                        show_left_ui=False, show_right_ui=False)
-            with self.viewer.lock():   # camera follows the B2 from behind and above; drag with the mouse to change
+            # camera follows the B2 from behind and above; drag with the mouse to change
+            with self.viewer.lock():
                 cam = self.viewer.cam
                 cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
                 cam.trackbodyid = self.world.b2_body
@@ -81,11 +88,14 @@ class RadarSim(Node):
 
     def lookup(self, frame, stamp=False):
         try:
-            tf = self.tf_buffer.lookup_transform('map', frame, Time(), timeout=Duration(seconds=0.0))
-            return (transform_matrix(tf.transform), tf.header.stamp) if stamp else transform_matrix(tf.transform)
+            tf = self.tf_buffer.lookup_transform('map', frame, Time(),
+                                                 timeout=Duration(seconds=0.0))
+            T = transform_matrix(tf.transform)
+            return (T, tf.header.stamp) if stamp else T
         except TransformException as e:
             if not self.warned:
-                self.get_logger().warn('Waiting for the robot pose (TF map -> %s): %s' % (frame, e))
+                self.get_logger().warn(
+                    'Waiting for the robot pose (TF map -> %s): %s' % (frame, e))
                 self.warned = True
             return (None, None) if stamp else None
 
@@ -100,7 +110,8 @@ class RadarSim(Node):
         return people, vel
 
     def step(self):
-        T_base, (T_radar, pose_stamp) = self.lookup('base_link'), self.lookup(RADAR_FRAME, stamp=True)
+        T_base = self.lookup('base_link')
+        T_radar, pose_stamp = self.lookup(RADAR_FRAME, stamp=True)
         if T_base is None or T_radar is None:
             return
         t = time.monotonic() - self.t0
@@ -116,8 +127,9 @@ class RadarSim(Node):
             self.world.forward()
             points = self.world.radar_scan(origin, rot, sensor_vel)
         now = self.get_clock().now()
-        # stamped with the time of the robot pose used for the scan, so the detector places the points with exactly
-        # that pose (with `now` it would interpolate TF to a slightly different one, which matters when turning)
+        # stamped with the time of the robot pose used for the scan, so the detector places the
+        # points with exactly that pose (with `now` it would interpolate TF to a slightly
+        # different one, which matters when turning)
         self.points_pub.publish(make_cloud(points, pose_stamp))
         self.publish_truth(people, origin, rot, now)
         self.draw()
@@ -128,12 +140,17 @@ class RadarSim(Node):
     def set_robot(self, T):
         R = T[:3, :3]
         w = math.sqrt(max(1e-12, 1 + R[0, 0] + R[1, 1] + R[2, 2])) / 2
-        quat = [w, (R[2, 1] - R[1, 2]) / (4 * w), (R[0, 2] - R[2, 0]) / (4 * w), (R[1, 0] - R[0, 1]) / (4 * w)]
+        quat = [w, (R[2, 1] - R[1, 2]) / (4 * w), (R[0, 2] - R[2, 0]) / (4 * w),
+                (R[1, 0] - R[0, 1]) / (4 * w)]
         self.world.set_robot(T[:3, 3], quat, self.joints)
 
     def draw(self):
-        """Shows the world just scanned in the viewer window (10 Hz; drawing more often slowed the radar on CPU-only
-        machines, because the viewer holds the lock while it renders)."""
+        """
+        Shows the world just scanned in the viewer window.
+
+        10 Hz; drawing more often slowed the radar on CPU-only machines, because the viewer holds
+        the lock while it renders.
+        """
         if self.viewer is None:
             return
         if not self.viewer.is_running():
@@ -163,7 +180,8 @@ class RadarSim(Node):
             m.scale.z = 1.7
             m.color = ColorRGBA(r=0.3, g=0.5, b=1.0, a=0.25)
             arr.markers.append(m)
-        self.truth_pub.publish(String(data=json.dumps(dict(stamp=now.nanoseconds * 1e-9, people=out))))
+        self.truth_pub.publish(String(data=json.dumps(
+            dict(stamp=now.nanoseconds * 1e-9, people=out))))
         self.truth_markers.publish(arr)
 
 
