@@ -15,6 +15,7 @@ setup(
         ('share/' + package_name + '/rviz', glob('rviz/*.rviz')),
         ('share/' + package_name + '/sql', glob('sql/*.sql')),
         ('share/' + package_name + '/params', glob('params/*.yaml')),
+        ('share/' + package_name + '/radar_cfg', glob('radar_cfg/*.cfg')),
     ],
     install_requires=['setuptools'],
     tests_require=['pytest'],
