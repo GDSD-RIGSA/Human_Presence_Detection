@@ -14,6 +14,12 @@
                    radar_cfg:=<.cfg from the TI visualizer>, radar_height:=1.0,
                    cli_port:=/dev/ttyACM0, data_port:=/dev/ttyACM1. No evaluator (no ground truth).
 
+radar:=auto (default: real for robot:=none, sim otherwise), sim, real (the TI AWR1443 over USB,
+same options as robot:=none) or bag (bag:=<rosbag2 folder with /radar/points>, bag_loop:=true).
+With robot:=unitree or scripted, radar:=real / bag put the recorded or live radar on the B2's nose.
+view:=2d (default, top-down) or 3d (orbit camera behind the B2).
+wall_mask:=auto (default: the map's walls hide points only with the simulated radar), true, false.
+
 event_log / panel: auto (default) starts the event logger and operator panel only when the event
 log (rigsa_alpha.event_store) is installed; true / false to force.
 Other options: radar_gui:=true (MuJoCo window of the radar world: building, people, B2),
@@ -45,6 +51,9 @@ ROOM_TRACKING = {'gate': 2.0, 'lost_after': 4.0, 'reacquire_s': 15.0, 'reacquire
                  'eps': 0.6}
 
 
+RVIZ = {'2d': 'operator.rviz', '3d': 'demo.rviz'}
+
+
 def b2_urdf():
     try:
         path = os.path.join(get_package_share_directory('b2_description'), 'urdf',
@@ -65,20 +74,33 @@ def setup(context):
         raise RuntimeError(
             "robot must be 'unitree', 'scripted', 'replay' or 'none', not %r" % robot)
     room = robot == 'none'
+    radar = a['radar']
+    if radar == 'auto':
+        radar = 'real' if room else 'sim'
+    if radar not in ('sim', 'real', 'bag'):
+        raise RuntimeError("radar must be 'auto', 'sim', 'real' or 'bag', not %r" % radar)
+    if radar == 'sim' and room:
+        raise RuntimeError('robot:=none needs radar:=real or radar:=bag')
+    if radar == 'sim' and robot == 'replay':
+        radar = 'none'
     share = get_package_share_directory('rigsa_alpha')
     urdf = None if room else b2_urdf()
     actions = [Node(package='rigsa_alpha', executable='site', output='screen',
                     parameters=[{'robot_box': urdf is None and not room, 'room': room,
                                  'radar_height': float(a['radar_height'])}])]
-    if room:
+    if radar == 'real':
         actions.append(Node(package='rigsa_alpha', executable='radar_driver', output='screen',
                             parameters=[{'radar_cfg': os.path.expanduser(a['radar_cfg']),
                                          'cli_port': a['cli_port'],
                                          'data_port': a['data_port']}]))
-    elif urdf is None:
+    elif radar == 'bag':
+        actions.append(Node(package='b2_radar', executable='bag_radar', output='screen',
+                            parameters=[{'bag': os.path.expanduser(a['bag']),
+                                         'loop': on('bag_loop')}]))
+    if urdf is None and not room:
         actions.append(LogInfo(
             msg='b2_description not found: RViz shows a box instead of the B2 model'))
-    else:
+    elif not room:
         actions.append(Node(package='robot_state_publisher', executable='robot_state_publisher',
                             output='log',
                             parameters=[{'robot_description': urdf}]))
@@ -91,22 +113,23 @@ def setup(context):
     elif robot == 'scripted':
         actions.append(Node(package='rigsa_alpha', executable='scripted_robot',
                             output='screen'))
-    if robot in ('unitree', 'scripted'):
+    if robot in ('unitree', 'scripted') and radar == 'sim':
         actions.append(Node(package='rigsa_alpha', executable='radar_sim', output='screen',
                             parameters=[{'gui': on('radar_gui'),
                                          'b2_xml': os.path.expanduser(a['b2_xml']),
                                          'seed': int(a['seed'])}]))
     actions += [
         Node(package='rigsa_alpha', executable='detector', output='screen',
-             parameters=([ROOM_TRACKING] if room else [])
+             parameters=([ROOM_TRACKING] if radar in ('real', 'bag') else [])
              + ([os.path.expanduser(a['detector_params'])] if a['detector_params'] else [])
-             + [{'room': room}]),
+             + [{'room': room, 'wall_mask': a['wall_mask'] == 'true' or (
+                 a['wall_mask'] == 'auto' and radar in ('sim', 'none'))}]),
     ]
     if on('event_log'):
         actions.append(Node(package='rigsa_alpha', executable='event_logger', output='screen',
                             parameters=[{'db_dsn': a['db_dsn'],
-                                         'source': 'real' if room else robot}]))
-    if on('evaluate') and not room:
+                                         'source': radar if radar in ('real', 'bag') else robot}]))
+    if on('evaluate') and radar in ('sim', 'none'):
         actions.append(Node(package='rigsa_alpha', executable='evaluator',
                             output='screen'))
     if on('panel'):
@@ -114,7 +137,7 @@ def setup(context):
                             parameters=[{'db_dsn': a['db_dsn'], 'operator': a['operator']}]))
     if on('rviz'):
         actions.append(Node(package='rviz2', executable='rviz2', output='log',
-                            arguments=['-d', os.path.join(share, 'rviz', 'operator.rviz')]))
+                            arguments=['-d', os.path.join(share, 'rviz', RVIZ[a['view']])]))
     return actions
 
 
@@ -145,6 +168,15 @@ def generate_launch_description():
                               description='robot:=none: radar height, m'),
         DeclareLaunchArgument('cli_port', default_value='/dev/ttyACM0'),
         DeclareLaunchArgument('data_port', default_value='/dev/ttyACM1'),
+        DeclareLaunchArgument('radar', default_value='auto',
+                              description="'auto', 'sim', 'real' or 'bag'"),
+        DeclareLaunchArgument('bag', default_value='',
+                              description='rosbag2 folder for radar:=bag'),
+        DeclareLaunchArgument('bag_loop', default_value='true'),
+        DeclareLaunchArgument('view', default_value='2d', description="'2d' or '3d' RViz view"),
+        DeclareLaunchArgument('wall_mask', default_value='auto',
+                              description="drop points on the map's walls: auto (only for the "
+                                          'simulated radar), true or false'),
         DeclareLaunchArgument('detector_params', default_value='',
                               description='yaml with detector overrides, '
                                           'e.g. params/room_improved.yaml'),
