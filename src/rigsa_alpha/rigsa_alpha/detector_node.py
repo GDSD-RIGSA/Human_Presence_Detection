@@ -70,6 +70,8 @@ class DetectorNode(Node):
         # true (robot:=none): no robot on the stand, so distances and bearings are measured from
         # the radar itself
         self.room = self.declare_parameter('room', False).value
+        # false: no point is dropped as a wall of the map (real radar data from another room)
+        self.wall_mask = self.declare_parameter('wall_mask', True).value
         changed = {k: v for k, v in self.tuning.items() if v != DEFAULT_TUNING.get(k, v)}
         changed = ', '.join('%s=%s' % kv for kv in sorted(changed.items())) or 'defaults'
         self.get_logger().info('Detector parameters: %s' % changed)
@@ -90,10 +92,13 @@ class DetectorNode(Node):
 
     def on_map(self, msg):
         grid = np.array(msg.data, dtype=np.int8).reshape(msg.info.height, msg.info.width)
+        if not self.wall_mask:
+            grid = np.zeros_like(grid)
         origin = (msg.info.origin.position.x, msg.info.origin.position.y)
         self.detector = Detector(BackgroundMask(grid, msg.info.resolution, origin), **self.tuning)
         self.get_logger().info(
-            'Map received (%dx%d); detector ready' % (msg.info.width, msg.info.height))
+            'Map received (%dx%d), wall mask %s; detector ready'
+            % (msg.info.width, msg.info.height, 'on' if self.wall_mask else 'off'))
 
     def lookup(self, frame, stamp, exact_only=False):
         try:
